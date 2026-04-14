@@ -2,78 +2,101 @@ import streamlit as st
 import google.generativeai as genai
 
 # --- CONFIGURAÇÃO DA IA ---
-# Sua chave já está configurada aqui
 genai.configure(api_key="AIzaSyBMIsMJ9xfSW7IrJhhKGfq1D61dxsguIF8")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- PERSONA DO CHEFE (BASEADO NO SEU SLIDE) ---
+# --- PERSONA DO CHEFE ---
 SISTEMA_PROMPT = """
-Você é um Diretor Administrativo de uma grande corporação. Você é extremamente exigente com a qualidade dos textos, 
-mas pratica rigorosamente a Comunicação Não-Violenta (CNV) e fornece feedbacks detalhados.
+Você é o Diretor Executivo (CEO) de uma empresa de consultoria administrativa.
+Seu perfil: Extremamente exigente com a escrita técnica, mas utiliza Comunicação Não-Violenta (CNV).
 
-CRITÉRIOS DE AVALIAÇÃO (Obrigatórios):
-1. COMUNICAÇÃO INTERNA: Tom direto e claro. Deve responder: O QUE, QUANDO e COMO ACESSAR.
-2. COMUNICAÇÃO EXTERNA: Tom persuasivo e profissional. Foco total nos BENEFÍCIOS PARA O CLIENTE. Linguagem elaborada.
+CRITÉRIOS DO MANUAL DA EMPRESA (SLIDE):
+1. COMUNICAÇÃO INTERNA: Tom direto e claro. OBRIGATÓRIO: O QUE é o benefício, QUANDO começa e COMO acessar.
+2. COMUNICAÇÃO EXTERNA: Tom persuasivo e profissional. Foco no BENEFÍCIO para o cliente. Linguagem elaborada.
 
-DINÂMICA:
-- Analise o texto do aluno.
-- Se faltar qualquer critério, aponte detalhadamente o que melhorar com educação (CNV).
-- Se estiver perfeito, comece sua resposta EXATAMENTE com a palavra 'APROVADO'.
+INSTRUÇÃO:
+- Se falhar nos critérios, dê feedback técnico detalhado.
+- Só comece com 'APROVADO' se estiver perfeito conforme o manual.
 """
 
 st.set_page_config(page_title="Simulador de Comunicação Técnica", layout="centered")
 
-st.title("💼 Desafio de Comunicação: Direção Executiva")
-st.markdown("---")
-
-# Controle de estado das fases
+# --- CONTROLE DE SESSÃO ---
+if 'nome' not in st.session_state:
+    st.session_state.nome = ""
 if 'fase' not in st.session_state:
     st.session_state.fase = 1
 
-# --- FASE 1: INTERNA (Vale-Refeição) ---
-if st.session_state.fase == 1:
-    st.header("Fase 1: Comunicação Interna")
-    st.info("SITUAÇÃO: O RH precisa informar sobre um novo benefício de vale-refeição.")
-    st.write("**Instrução:** Seja direto e claro. Informe o que é, quando começa e como acessar.")
+# --- TELA DE LOGIN/IDENTIFICAÇÃO ---
+if not st.session_state.nome:
+    st.title("💼 Sistema de Treinamento Executivo")
+    st.subheader("Identificação do Colaborador")
+    nome_input = st.text_input("Digite seu nome completo para acessar os desafios:")
     
-    texto_usuario = st.text_area("Digite sua proposta de e-mail interno:", height=200, key="txt_interna")
-    
-    if st.button("Enviar para o Diretor"):
-        if texto_usuario:
-            with st.spinner('O Diretor está analisando seu texto...'):
-                res = model.generate_content(f"{SISTEMA_PROMPT}\n\nAnalise este e-mail INTERNO: {texto_usuario}")
-                feedback = res.text
-                
-                if "APROVADO" in feedback.upper():
-                    st.success("✅ APROVADO! Excelente trabalho de clareza.")
-                    st.write(feedback.replace("APROVADO", ""))
-                    if st.button("Ir para o Desafio Externo"):
-                        st.session_state.fase = 2
-                        st.rerun()
-                else:
-                    st.warning("⚠️ O Diretor solicitou melhorias:")
-                    st.markdown(feedback)
+    if st.button("Acessar Desafios"):
+        if nome_input:
+            st.session_state.nome = nome_input
+            st.rerun()
         else:
-            st.error("Por favor, escreva o texto antes de enviar.")
+            st.error("Por favor, identifique-se para que o Diretor possa avaliar seu desempenho.")
 
-# --- FASE 2: EXTERNA (Novo Produto) ---
-elif st.session_state.fase == 2:
-    st.header("Fase 2: Comunicação Externa")
-    st.info("SITUAÇÃO: A empresa está lançando um novo produto para os clientes.")
-    st.write("**Instrução:** Use linguagem persuasiva e profissional. Foque nos benefícios para o cliente.")
+# --- INTERFACE DO JOGO (PÓS-LOGIN) ---
+else:
+    st.title("💼 Desafio de Comunicação: Direção Executiva")
+    st.sidebar.markdown(f"👤 **Colaborador:**\n{st.session_state.nome}")
     
-    texto_usuario_ext = st.text_area("Digite seu e-mail de marketing:", height=200, key="txt_externa")
-    
-    if st.button("Finalizar Campanha"):
-        if texto_usuario_ext:
-            with st.spinner('O Diretor está avaliando o impacto comercial...'):
-                res = model.generate_content(f"{SISTEMA_PROMPT}\n\nAnalise este e-mail EXTERNO: {texto_usuario_ext}")
-                feedback_ext = res.text
-                
-                if "APROVADO" in feedback_ext.upper():
-                    st.balloons()
-                    st.success("✅ APROVADO! Sua comunicação externa atingiu o nível executivo.")
-                    st.write(feedback_ext.replace("APROVADO", ""))
-                else:
-                    st.warning("⚠️ O Diretor acredita que pode ser mais persuasivo:")
-                    st.markdown(feedback_ext)
+    if st.sidebar.button("Sair/Trocar Nome"):
+        st.session_state.nome = ""
+        st.session_state.fase = 1
+        st.rerun()
+
+    with st.expander("📢 MENSAGEM DA DIRETORIA", expanded=True):
+        st.markdown(f"""
+        **"Prezado(a) {st.session_state.nome},** como Diretor, prezo pela excelência. 
+        Abaixo estão suas tarefas de hoje. Eu revisarei pessoalmente cada rascunho. 
+        Siga rigorosamente o manual de comunicação da empresa (o slide) ou seu texto será rejeitado."
+        """)
+
+    st.markdown("---")
+
+    # --- FASE 1: INTERNA ---
+    if st.session_state.fase == 1:
+        st.header("Fase 1: Comunicado Interno")
+        st.info("SITUAÇÃO: Informar a equipe sobre o novo Vale-Refeição.")
+        
+        texto_usuario = st.text_area("Digite sua proposta de e-mail interno:", height=200, placeholder="Assunto: Atualização sobre Benefícios...")
+        
+        if st.button("Enviar para Revisão"):
+            if texto_usuario:
+                with st.spinner('O Diretor está analisando...'):
+                    res = model.generate_content(f"{SISTEMA_PROMPT}\n\nAnalise este e-mail INTERNO: {texto_usuario}")
+                    if "APROVADO" in res.text.upper():
+                        st.success("✅ **APROVADO PELO DIRETOR!**")
+                        st.write(res.text.replace("APROVADO", ""))
+                        if st.button("Avançar para Fase Externa"):
+                            st.session_state.fase = 2
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ **FEEDBACK DA DIRETORIA:**")
+                        st.markdown(res.text)
+            else:
+                st.error("O campo de texto não pode estar vazio.")
+
+    # --- FASE 2: EXTERNA ---
+    elif st.session_state.fase == 2:
+        st.header("Fase 2: Comunicação com o Mercado")
+        st.info("SITUAÇÃO: Lançamento de um novo produto para os clientes.")
+        
+        texto_usuario_ext = st.text_area("Digite seu e-mail de marketing:", height=200, placeholder="Prezado cliente...")
+        
+        if st.button("Enviar para Aprovação Final"):
+            if texto_usuario_ext:
+                with st.spinner('Avaliando impacto comercial...'):
+                    res = model.generate_content(f"{SISTEMA_PROMPT}\n\nAnalise este e-mail EXTERNO: {texto_usuario_ext}")
+                    if "APROVADO" in res.text.upper():
+                        st.balloons()
+                        st.success("✅ **EXCELENTE! APROVADO PARA DISPARO AO MERCADO.**")
+                        st.write(res.text.replace("APROVADO", ""))
+                    else:
+                        st.warning("⚠️ **FEEDBACK DA DIRETORIA:**")
+                        st.markdown(res.text)
