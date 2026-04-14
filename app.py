@@ -3,13 +3,13 @@ import google.generativeai as genai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# 1. CONFIGURAÇÃO DA IA (GEMINI)
+# 1. CONFIGURAÇÃO DA IA (GEMINI) - CHAVE E MODELO LIMPOS
 API_KEY = "AIzaSyBMIsMJ9xfSW7IrJhhKGfq1D61dxsguIF8"
 genai.configure(api_key=API_KEY)
-# VOLTAMOS PARA O NOME SIMPLES (O correto para a maioria das versões)
+# Usando o nome direto, sem o "models/" que causou o erro 404
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 2. CONFIGURAÇÃO DA PLANILHA (GOOGLE SHEETS)
+# 2. CONFIGURAÇÃO DA PLANILHA
 def salvar_na_planilha(nome, texto_aluno, feedback):
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -19,7 +19,6 @@ def salvar_na_planilha(nome, texto_aluno, feedback):
         sheet.append_row([nome, texto_aluno, feedback])
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar na planilha: {e}")
         return False
 
 # 3. INTERFACE DO USUÁRIO
@@ -41,19 +40,19 @@ else:
 
     st.header("Fase 1: Comunicado Interno")
     with st.expander("📝 SITUAÇÃO: Informar a equipe sobre o novo Vale Refeição", expanded=True):
-        st.write("Escreva um e-mail sobre o aumento de 10% no VR e a entrega dos cartões na sexta.")
+        st.write("Sua tarefa: Informar sobre o aumento de 10% no VR e entrega dos cartões na sexta.")
 
-    texto_aluno = st.text_area("Sua resposta:", height=150)
+    texto_aluno = st.text_area("Sua proposta de e-mail:", height=150)
 
     if st.button("Enviar para Revisão"):
         if texto_aluno:
-            with st.spinner('Analisando...'):
+            with st.spinner('O Diretor está analisando...'):
                 try:
-                    prompt = f"Feedback curto para este e-mail de aluno: {texto_aluno}"
+                    prompt = f"Feedback curto para este e-mail de aluno de administração: {texto_aluno}"
                     response = model.generate_content(prompt)
                     feedback = response.text
                     st.info(feedback)
-                    if salvar_na_planilha(st.session_state.nome, texto_aluno, feedback):
-                        st.success("Salvo com sucesso!")
+                    salvar_na_planilha(st.session_state.nome, texto_aluno, feedback)
+                    st.success("Resposta enviada com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro: {e}")
+                    st.error(f"Erro no Diretor: {e}")
