@@ -1,72 +1,94 @@
 import streamlit as st
 import requests
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
-# --- FUNÇÃO DA IA ---
-def chamar_gemini(prompt):
-    api_key = st.secrets.get("GEMINI_API_KEY")
+# --- FUNÇÃO GEMINI ---
+def chamar_gemini(prompt, api_key):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
+
     try:
-        r = requests.post(url, json=payload, timeout=20)
+        r = requests.post(url, json=payload, timeout=30)
         return r.json()['candidates'][0]['content']['parts'][0]['text']
     except:
-        return "Erro ao conectar com o Diretor. Verifique a GEMINI_API_KEY nas Secrets."
+        return "Erro ao gerar resposta."
 
-# --- FUNÇÃO DA PLANILHA ---
-def salvar_resultado(nome, atividade, feedback):
+# --- FUNÇÃO SALVAR PLANILHA ---
+def salvar(dados, url):
     try:
-        creds_dict = {
-            "type": "service_account",
-            "project_id": st.secrets["PROJECT_ID"],
-            "private_key": st.secrets["PRIVATE_KEY"],
-            "client_email": st.secrets["CLIENT_EMAIL"],
-            "token_uri": "https://oauth2.googleapis.com/token",
-        }
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        sheet = client.open("SIMULADOR_COMUNICACAO_2026").sheet1
-        sheet.append_row([nome, atividade, feedback])
-        return True
-    except Exception as e:
-        st.sidebar.error(f"Erro ao salvar: {str(e)}")
-        return False
+        requests.post(url, json=dados)
+    except:
+        pass
 
-# --- INTERFACE ---
-st.set_page_config(page_title="Simulador", layout="wide")
-st.title("💼 Simulador de Comunicação Profissional")
+# --- CONFIG ---
+st.set_page_config(page_title="Simulador de Comunicação", layout="wide")
+st.title("💼 Simulador de Comunicação Empresarial")
 
-with st.sidebar:
-    nome = st.text_input("Seu Nome Completo:")
-    if st.button("Limpar Tudo"): st.session_state.clear(); st.rerun()
+api_key = st.secrets["GEMINI_API_KEY"]
+webhook = st.secrets["SHEETS_WEBHOOK_URL"]
 
+# --- IDENTIFICAÇÃO ---
+nome = st.text_input("Digite seu nome:")
+
+if "tentativa" not in st.session_state:
+    st.session_state.tentativa = 1
+
+# --- JOGO ---
 if nome:
-    prompt_diretor = (
-        "Aja como um Diretor Administrativo rigoroso. Critique o e-mail do aprendiz de forma pedagógica. "
-        "Se houver CAIXA ALTA, diga que ele está gritando e isso é inaceitável. Critique gírias. "
-        "NÃO dê o texto pronto. Dê uma nota de 0 a 10. Se nota < 7, escreva: '⚠️ REFAÇA O E-MAIL.'"
-    )
+    st.write("### Missão: Comunicação Interna")
 
-    tab1, tab2 = st.tabs(["📧 Missão 1", "🤝 Missão 2"])
+    texto = st.text_area("Escreva o e-mail:")
 
-    with tab1:
-        st.subheader("Cenário: VR aumentou 10%. Avisar equipe.")
-        texto1 = st.text_area("Seu e-mail interno:", key="t1")
-        if st.button("Enviar para o Diretor (1)"):
-            with st.spinner("Analisando..."):
-                res = chamar_gemini(f"{prompt_diretor}\n\nE-mail: {texto1}")
-                st.write(res)
-                salvar_resultado(nome, "Interno", res)
+    if st.button("Enviar"):
+        if texto.strip() == "":
+            st.warning("Digite algo.")
+        else:
+            prompt = f"""
+Você é um avaliador de comunicação empresarial.
 
-    with tab2:
-        st.subheader("Cenário: Faturas por PDF. Avisar cliente.")
-        texto2 = st.text_area("Seu e-mail externo:", key="t2")
-        if st.button("Enviar para o Diretor (2)"):
-            with st.spinner("Analisando..."):
-                res = chamar_gemini(f"{prompt_diretor}\n\nE-mail: {texto2}")
-                st.write(res)
-                salvar_resultado(nome, "Externo", res)
+Analise o texto abaixo.
+
+Responda assim:
+Acertou em:
+- ...
+
+Precisa melhorar em:
+- ...
+
+Avaliação geral:
+- ...
+
+Regras:
+- Seja direto
+- Não reescreva o texto
+- Não dê modelo pronto
+
+Texto:
+{texto}
+"""
+
+            feedback = chamar_gemini(prompt, api_key)
+
+            st.subheader("📋 Feedback")
+            st.write(feedback)
+
+            status = "Aceito"
+            if "melhorar" in feedback.lower():
+                status = "Precisa melhorar"
+
+            dados = {
+                "data_hora": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "nome": nome,
+                "tema": "Comunicação",
+                "missao": "Email Interno",
+                "tentativa": st.session_state.tentativa,
+                "resposta_aluno": texto,
+                "feedback_ia": feedback,
+                "status": status
+            }
+
+            salvar(dados, webhook)
+
+            st.session_state.tentativa += 1
 else:
-    st.warning("👈 Digite seu nome ao lado para começar.")
+    st.info("Digite seu nome para começar.")
